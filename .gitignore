@@ -66,6 +66,16 @@ typings/
 .env
 .env.test
 .env.production
+.env.local
+
+# User-specific test SMS credentials (never commit)
+test-sms.json
+**/test-sms.json
+
+# Runtime notification logs
+incoming-log.jsonl
+last-notification.json
+notification-permission.json
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache

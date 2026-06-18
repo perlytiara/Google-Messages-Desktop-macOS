@@ -1,62 +1,61 @@
-# Google Messages Desktop App 💬
+# Messages
 
-This is an unofficial Google Messages desktop application built with Electron. It provides a convenient way to access and use Google Messages on your desktop.
+Unofficial Google Messages desktop client for macOS. Native Notification Center alerts with **Copy Code** for verification texts.
 
-## Features ✨
+Forked from [Alyetama/Google-Messages-Desktop](https://github.com/Alyetama/Google-Messages-Desktop).
 
-- Full access to Google Messages for Web.
-- Native desktop experience with window controls and menus.
-- Persistent login sessions.
-- Optimized for performance and ease of use.
+## Download
 
-## Screenshots 📸
+Get the latest release for your Mac:
 
-![Screenshot](assets/screenshot.png)
+| Chip | Download |
+|------|----------|
+| Apple Silicon (M1/M2/M3/M4) | `Messages-1.0.0-arm64.dmg` |
+| Intel | `Messages-1.0.0-x64.dmg` |
 
-## Installation 📥
+Releases: [github.com/perlytiara/Google-Messages-Desktop-macOS/releases](https://github.com/perlytiara/Google-Messages-Desktop-macOS/releases)
 
-1. **Download the latest release:**
-   - **macOS (arm64):** [Download](https://github.com/Alyetama/Google-Messages-Desktop/releases/download/v1.0.1/Google.Messages.Desktop-v1.0.1-arm64.dmg)
+### Install
 
-2. **Install the app:**
-   - **macOS:** Open the `.dmg` file and drag the app to your Applications folder.
+1. Open the `.dmg` for your Mac type.
+2. Drag **Messages** to Applications.
+3. First launch: right-click → **Open** if macOS blocks the unsigned app.
+4. Sign in to Google Messages and allow notifications when prompted.
+5. In **System Settings → Notifications → Messages**, choose **Persistent** alerts so Copy Code buttons stay visible.
 
-> ⚠️ Note: This build is for Apple Silicon Macs and supports macOS 10.12 and above.
+## Features
 
-## Development 🛠️
+- Google Messages for Web in a dedicated desktop app.
+- Native macOS notifications for incoming texts.
+- **Copy Code** / **Dismiss** on verification messages.
+- Regular messages show as normal notifications.
+- App stays in the menu bar when you close the window (red X).
 
-1. **Clone the repository:**
+## Development
 
-   ```bash
-   git clone git@github.com:Alyetama/Google-Messages-Desktop.git
-   ```
+```bash
+git clone https://github.com/perlytiara/Google-Messages-Desktop-macOS.git
+cd Google-Messages-Desktop-macOS
+npm install
+npm start
+```
 
-2. **Install dependencies:**
-
-   ```bash
-   npm install
-   ```
-
-3. **Start the development server:**
-
-   ```bash
-   npm start
-   ```
-
-## Building 🏗️
-
-To build the app for different platforms, run:
+### Build locally
 
 ```bash
 npm run dist
 ```
 
-This will create an installer (e.g., `.dmg` for macOS) in the `dist` directory.
+Produces `Messages-1.0.0-arm64.dmg` and `Messages-1.0.0-x64.dmg` in `dist/`.
 
-## Contributing 🤝
+### Optional: test SMS via Twilio
 
-Contributions are welcome! If you run into issues or have feature suggestions, feel free to open an issue or submit a pull request.
+For developers only. Credentials stay on your machine — never committed to git.
 
-## License 📜
+1. Copy `.env.example` to `~/Library/Application Support/messages/.env`, or use **Testing → Configure Test SMS Settings** in the app.
+2. Add your own Twilio Account SID, Auth Token, sender ID, and phone number.
+3. Use **Testing → Send Real SMS to My Phone** or `npm run test:sms`.
 
-This project is licensed under the [MIT License](https://opensource.org/license/mit).
+## License
+
+[MIT License](https://opensource.org/license/mit).
