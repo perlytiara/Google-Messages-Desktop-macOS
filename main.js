@@ -9,7 +9,16 @@ const {
 } = require('electron');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { showMessageNotification, setOnCopyCodeCallback, setFocusWindowCallback } = require('./lib/notifications');
+const { showMessageNotification, setSuppressForegroundCallback, setOnNotificationShownCallback, setOnNotificationClickCallback } = require('./lib/notifications');
+const {
+  attachMainWindow,
+  setRunningInBackground,
+  captureFrontApp,
+  handleNotificationInteraction,
+  handleNotificationOpen,
+  handleAppActivate,
+} = require('./lib/notification-foreground');
+const { openConversation } = require('./lib/open-conversation');
 const { requestMacNotificationPermission, readPermissionState } = require('./lib/permissions');
 const { setupServiceWorkerNotificationBridge } = require('./lib/service-worker-bridge');
 const { setupMessageWatcher } = require('./lib/message-watcher');
@@ -27,46 +36,7 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 
 let mainWindow;
-let runningInBackground = false;
-let skipNextActivate = false;
-let suppressForegroundUntil = 0;
 let messagesSession;
-
-function suppressAppForeground() {
-  skipNextActivate = true;
-  suppressForegroundUntil = Date.now() + 2000;
-
-  setImmediate(() => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.hide();
-    }
-  });
-
-  setTimeout(() => {
-    skipNextActivate = false;
-  }, 2000);
-}
-
-function shouldSuppressForeground() {
-  return skipNextActivate || Date.now() < suppressForegroundUntil;
-}
-
-function focusMainWindow() {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-
-  if (!mainWindow.isVisible()) {
-    mainWindow.show();
-  }
-
-  if (mainWindow.isMinimized()) {
-    mainWindow.restore();
-  }
-
-  mainWindow.focus();
-  runningInBackground = false;
-}
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -100,27 +70,22 @@ function createMainWindow() {
     if (!app.isQuiting) {
       event.preventDefault();
       mainWindow.hide();
-      runningInBackground = true;
+      setRunningInBackground(true);
     }
   });
 
   mainWindow.on('show', () => {
-    if (shouldSuppressForeground()) {
-      mainWindow.hide();
-      return;
-    }
-    runningInBackground = false;
+    setRunningInBackground(false);
   });
 
-  mainWindow.on('focus', () => {
-    if (shouldSuppressForeground()) {
-      mainWindow.blur();
-      mainWindow.hide();
-    }
+  mainWindow.on('blur', () => {
+    captureFrontApp();
   });
 
-  setOnCopyCodeCallback(suppressAppForeground);
-  setFocusWindowCallback(focusMainWindow);
+  attachMainWindow(mainWindow);
+  setSuppressForegroundCallback(handleNotificationInteraction);
+  setOnNotificationShownCallback(captureFrontApp);
+  setOnNotificationClickCallback(handleNotificationClick);
   setupServiceWorkerNotificationBridge(mainWindow, messagesSession);
   setupMessageWatcher(mainWindow, (payload) => {
     handleIncomingNotification(null, payload);
@@ -128,8 +93,22 @@ function createMainWindow() {
 }
 
 function handleIncomingNotification(_event, payload) {
+  captureFrontApp();
   logIncomingPayload(payload);
   showMessageNotification(payload);
+}
+
+async function handleNotificationClick({ sender, conversationUrl, body }) {
+  handleNotificationOpen();
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  const result = await openConversation(mainWindow, { sender, conversationUrl, body });
+  if (!result.ok) {
+    console.warn('[Messages] Could not open conversation:', result.reason || result, { sender, conversationUrl });
+  }
 }
 
 function promptForTestMessage(defaultText) {
@@ -363,22 +342,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  if (shouldSuppressForeground()) {
-    return;
-  }
-
-  if (mainWindow) {
-    mainWindow.show();
-    runningInBackground = false;
-  } else {
-    createMainWindow();
-  }
-});
-
-app.on('browser-window-focus', (window) => {
-  if (window === mainWindow && shouldSuppressForeground()) {
-    window.hide();
-  }
+  handleAppActivate({ createMainWindow });
 });
 
 app.on('before-quit', () => {
