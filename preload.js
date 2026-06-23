@@ -4,6 +4,9 @@ contextBridge.exposeInMainWorld('__messagesNativeBridge', {
   deliverNotification(payload) {
     ipcRenderer.send('notification:incoming', payload);
   },
+  requestSnippetScan() {
+    ipcRenderer.send('watcher:scan-now');
+  },
 });
 
 function forwardNotification(payload) {

@@ -1,6 +1,6 @@
 {
   "name": "messages",
-  "version": "1.1.0",
+  "version": "1.5.0",
   "main": "main.js",
   "description": "Unofficial Google Messages desktop client for macOS with native notifications.",
   "author": "perlytiara",
@@ -11,6 +11,7 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
+    "install:app": "bash scripts/install-messages.sh",
     "dist": "node build-script.js",
     "dist:arm64": "electron-builder --mac dmg --arm64 -p never",
     "dist:x64": "electron-builder --mac dmg --x64 -p never",

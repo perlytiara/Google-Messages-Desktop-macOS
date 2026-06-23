@@ -9,33 +9,66 @@ const {
 } = require('electron');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { showMessageNotification, setSuppressForegroundCallback, setOnNotificationShownCallback, setOnNotificationClickCallback } = require('./lib/notifications');
+const {
+  showMessageNotification,
+  setSuppressForegroundCallback,
+  setOnNotificationShownCallback,
+  setOnNotificationClickCallback,
+  setOnNotificationReplyCallback,
+} = require('./lib/notifications');
 const {
   attachMainWindow,
   setRunningInBackground,
   captureFrontApp,
+  restoreFrontApp,
+  suppressActivateDuringReply,
+  prepareWindowForBackgroundReply,
+  finishBackgroundReply,
+  setReplyInProgress,
   handleNotificationInteraction,
   handleNotificationOpen,
   handleAppActivate,
 } = require('./lib/notification-foreground');
 const { openConversation } = require('./lib/open-conversation');
+const { sendReply } = require('./lib/send-reply');
+const { logReplyEvent, readLastReplyLog } = require('./lib/reply-log');
 const { requestMacNotificationPermission, readPermissionState } = require('./lib/permissions');
 const { setupServiceWorkerNotificationBridge } = require('./lib/service-worker-bridge');
 const { setupMessageWatcher } = require('./lib/message-watcher');
 const { readLastNotificationLog, logIncomingPayload } = require('./lib/notification-log');
 const {
   REGULAR_SCENARIO,
+  GROUPED_SCENARIO,
   VERIFICATION_FORMATS,
   TEST_SCENARIOS,
   simulateNotification,
   simulateServiceWorkerMessage,
 } = require('./lib/test-notifications');
 const { SMS_TEMPLATES, openConfig, sendTestSms, loadConfig, getFromSender } = require('./lib/test-sms');
+const { readSelfTestConfig, writeSelfTestConfig, openSelfTestConfig, ensureSelfTestConfig } = require('./lib/self-test-config');
+const { readLastWatcherEvents, getLogPath: getWatcherLogPath } = require('./lib/watcher-debug-log');
+const { injectSnippetObserver } = require('./lib/snippet-observer');
 
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 let mainWindow;
+let triggerMessageScan = () => {};
 let messagesSession;
 
 function createMainWindow() {
@@ -86,10 +119,15 @@ function createMainWindow() {
   setSuppressForegroundCallback(handleNotificationInteraction);
   setOnNotificationShownCallback(captureFrontApp);
   setOnNotificationClickCallback(handleNotificationClick);
+  setOnNotificationReplyCallback(handleNotificationReply);
   setupServiceWorkerNotificationBridge(mainWindow, messagesSession);
-  setupMessageWatcher(mainWindow, (payload) => {
+  triggerMessageScan = setupMessageWatcher(mainWindow, (payload) => {
     handleIncomingNotification(null, payload);
-  });
+  }) || (() => {});
+
+  const injectObserver = () => injectSnippetObserver(mainWindow);
+  mainWindow.webContents.on('did-finish-load', injectObserver);
+  mainWindow.webContents.on('dom-ready', injectObserver);
 }
 
 function handleIncomingNotification(_event, payload) {
@@ -108,6 +146,48 @@ async function handleNotificationClick({ sender, conversationUrl, body }) {
   const result = await openConversation(mainWindow, { sender, conversationUrl, body });
   if (!result.ok) {
     console.warn('[Messages] Could not open conversation:', result.reason || result, { sender, conversationUrl });
+  }
+}
+
+async function handleNotificationReply({ sender, conversationUrl, replyText }) {
+  captureFrontApp();
+  suppressActivateDuringReply(20000);
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    logReplyEvent('skipped', { reason: 'no-window', sender, conversationUrl, replyText });
+    restoreFrontApp();
+    return;
+  }
+
+  const { wasHidden } = prepareWindowForBackgroundReply();
+  setReplyInProgress(true);
+
+  try {
+    const result = await sendReply(mainWindow, {
+      sender,
+      conversationUrl,
+      text: replyText,
+      background: true,
+    });
+
+    if (result.ok) {
+      console.log('[Messages] Reply sent (background):', {
+        sender,
+        conversationUrl,
+        method: result.method,
+        verified: result.verified,
+      });
+    } else {
+      console.warn('[Messages] Reply failed (background):', result.reason || result, {
+        sender,
+        conversationUrl,
+        replyText,
+      });
+    }
+  } finally {
+    setReplyInProgress(false);
+    finishBackgroundReply({ wasHidden });
+    restoreFrontApp();
   }
 }
 
@@ -181,13 +261,65 @@ async function runTestSms(template) {
   });
 }
 
+async function runWatcherDiagnostic() {
+  ensureSelfTestConfig();
+  simulateNotification({
+    title: 'Pipeline Test',
+    body: 'If you see this banner, macOS notifications work in Messages.',
+    skipDedupe: true,
+  });
+
+  triggerMessageScan();
+  await new Promise((resolve) => setTimeout(resolve, 600));
+
+  const config = readSelfTestConfig();
+  const events = readLastWatcherEvents(6);
+  const lastIncoming = readLastNotificationLog();
+
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: 'Notification pipeline test',
+    message: `Messages ${app.getVersion()} — check for a test banner now`,
+    detail: [
+      '1. A test notification should have appeared just now.',
+      '2. If YES → macOS notifications work. Real SMS needs Google Messages web to sync.',
+      '3. If NO → System Settings → Notifications → Messages → allow Alerts.',
+      '',
+      `Notify on sent messages: ${config.notifyOutgoing ? 'ON' : 'OFF'}`,
+      `Your SIM numbers: ${config.numbers.length ? config.numbers.join(', ') : '(add in Configure My SIM Numbers)'}`,
+      '',
+      `Last detected message: ${lastIncoming?.payload?.body || '(none logged)'}`,
+      '',
+      'Recent watcher activity:',
+      events.length
+        ? events.map((entry) => JSON.stringify(entry)).join('\n')
+        : '(no watcher events — is Google Messages logged in?)',
+      '',
+      `Watcher log: ${getWatcherLogPath()}`,
+    ].join('\n'),
+  });
+}
+
 function setupApplicationMenu() {
   const isMac = process.platform === 'darwin';
 
   const testingSubmenu = [
     {
+      label: `Version ${app.getVersion()}`,
+      enabled: false,
+    },
+    { type: 'separator' },
+    {
+      label: 'Run Full Notification Pipeline Test',
+      click: () => runWatcherDiagnostic(),
+    },
+    {
       label: 'Preview Regular Message (instant)',
       click: () => simulateNotification(REGULAR_SCENARIO.payload),
+    },
+    {
+      label: 'Preview Grouped Follow-up (same contact)',
+      click: () => simulateNotification(GROUPED_SCENARIO.payload),
     },
     {
       label: 'Preview Verification Formats (instant)',
@@ -226,6 +358,55 @@ function setupApplicationMenu() {
           title: 'Last notification payload',
           message: last ? 'Most recent notification captured by Messages' : 'No notification logged yet',
           detail: last ? JSON.stringify(last, null, 2) : 'Trigger an SMS, then check again.',
+        });
+      },
+    },
+    {
+      label: 'Show Last Reply Debug Log',
+      click: () => {
+        const entries = readLastReplyLog(8);
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          title: 'Reply debug log',
+          message: entries.length ? 'Recent notification reply attempts' : 'No reply attempts logged yet',
+          detail: entries.length
+            ? entries.map((entry) => JSON.stringify(entry, null, 2)).join('\n\n')
+            : 'Reply from a notification, then check again.\n\nLog file:\n~/Library/Application Support/messages/reply-log.jsonl',
+        });
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Notify When I Send a Message',
+      type: 'checkbox',
+      checked: readSelfTestConfig().notifyOutgoing,
+      click: (menuItem) => {
+        const config = readSelfTestConfig();
+        writeSelfTestConfig({ ...config, notifyOutgoing: menuItem.checked });
+      },
+    },
+    {
+      label: 'Configure My SIM Numbers…',
+      click: () => {
+        const configPath = openSelfTestConfig();
+        const config = readSelfTestConfig();
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          title: 'Self-SMS test numbers',
+          message: 'Add both SIM numbers so you can test notifications by texting yourself',
+          detail: [
+            'File opened:',
+            configPath,
+            '',
+            'Add your phone numbers in any format, for example:',
+            '  "+1 555 000 0001"',
+            '  "+1 555 000 0002"',
+            '',
+            'When "Notify When I Send a Message" is on, you also get a banner for texts you send',
+            '(useful for dual-SIM testing). Incoming texts always notify.',
+            '',
+            `Currently configured: ${config.numbers.length ? config.numbers.join(', ') : '(none — add your numbers)'}`,
+          ].join('\n'),
         });
       },
     },
@@ -292,48 +473,54 @@ function setupApplicationMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-app.whenReady().then(async () => {
-  messagesSession = session.fromPartition('persist:messages');
+if (gotSingleInstanceLock) {
+  app.whenReady().then(async () => {
+    ensureSelfTestConfig();
+    messagesSession = session.fromPartition('persist:messages');
 
-  messagesSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    if (permission === 'notifications') {
-      callback(false);
-      return;
-    }
+    messagesSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+      if (permission === 'notifications') {
+        callback(false);
+        return;
+      }
 
-    callback(true);
-  });
+      callback(true);
+    });
 
-  messagesSession.setPermissionCheckHandler((_webContents, permission) => {
-    if (permission === 'notifications') {
-      return false;
-    }
+    messagesSession.setPermissionCheckHandler((_webContents, permission) => {
+      if (permission === 'notifications') {
+        return false;
+      }
 
-    return true;
-  });
+      return true;
+    });
 
-  ipcMain.on('notification:incoming', handleIncomingNotification);
+    ipcMain.on('notification:incoming', handleIncomingNotification);
+    ipcMain.on('watcher:scan-now', () => {
+      triggerMessageScan();
+    });
 
-  ipcMain.handle('notification:request-permission', async () => {
-    const status = await requestMacNotificationPermission(mainWindow);
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    ipcMain.handle('notification:request-permission', async () => {
+      const status = await requestMacNotificationPermission(mainWindow);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('notification:permission-changed', status);
+      }
+      return status;
+    });
+
+    setupApplicationMenu();
+    createMainWindow();
+
+    mainWindow.webContents.once('did-finish-load', async () => {
+      if (readPermissionState().prompted) {
+        return;
+      }
+
+      const status = await requestMacNotificationPermission(mainWindow);
       mainWindow.webContents.send('notification:permission-changed', status);
-    }
-    return status;
+    });
   });
-
-  setupApplicationMenu();
-  createMainWindow();
-
-  mainWindow.webContents.once('did-finish-load', async () => {
-    if (readPermissionState().prompted) {
-      return;
-    }
-
-    const status = await requestMacNotificationPermission(mainWindow);
-    mainWindow.webContents.send('notification:permission-changed', status);
-  });
-});
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
