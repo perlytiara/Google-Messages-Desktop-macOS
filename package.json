@@ -1,6 +1,6 @@
 {
   "name": "messages",
-  "version": "1.5.0",
+  "version": "1.5.2",
   "main": "main.js",
   "description": "Unofficial Google Messages desktop client for macOS with native notifications.",
   "author": "perlytiara",

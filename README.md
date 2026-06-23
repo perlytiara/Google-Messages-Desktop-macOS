@@ -30,8 +30,8 @@ Get the latest release:
 
 | Chip | File |
 |------|------|
-| Apple Silicon (M1/M2/M3/M4) | `Messages-1.5.0-arm64.dmg` |
-| Intel | `Messages-1.5.0-x64.dmg` |
+| Apple Silicon (M1/M2/M3/M4) | `Messages-1.5.2-arm64.dmg` |
+| Intel | `Messages-1.5.2-x64.dmg` |
 
 Releases: [github.com/perlytiara/Google-Messages-Desktop-macOS/releases](https://github.com/perlytiara/Google-Messages-Desktop-macOS/releases)
 
@@ -66,7 +66,21 @@ That rebuilds, installs to `/Applications/Messages.app`, and relaunches.
 - Opens the correct conversation via in-app navigation (no full reload).
 - **Persistent message baseline** — restarts do not re-notify for old conversations.
 - **Single-instance app** — no duplicate Messages icons in the Dock.
+- **Incoming-only notifications** — messages you send (including quick replies) no longer trigger a second banner that looks like it came from the contact.
 - Optional developer tools for testing SMS via Twilio (credentials stay local).
+
+## What's new in 1.5.2
+
+- **Fix false reply notifications** — replying from Notification Center no longer triggers a second alert that shows your contact’s name with your own message text.
+- **Outgoing messages blocked by default** — only incoming texts notify; legacy self-test config no longer enables notify-on-send accidentally.
+- **Reply echo suppression** — dismisses the banner on reply and suppresses watcher echoes for that thread.
+- **Config migration** — old `enabled` flag in `self-test.json` is removed and mapped to safe defaults.
+
+## What's new in 1.5.1
+
+- **Faster notification replies** — reduced wait times before typing and sending from a quick reply.
+- **Persistent snippet baseline** — conversation previews saved to disk to prevent duplicate alerts after restart.
+- **Stable startup scan** — waits for the inbox to finish loading before delivering notifications.
 
 ## What's new in 1.5.0
 
@@ -75,7 +89,7 @@ That rebuilds, installs to `/Applications/Messages.app`, and relaunches.
 - **Reliable send pipeline** — replies type into Google Messages correctly, click Send, and verify the message actually left the compose box.
 - **Faster replies** — reduced delays when the conversation is already open; send completes in about a second in typical cases.
 - **No duplicate alerts on restart** — conversation snippets are saved to disk and the watcher waits for a stable inbox scan before delivering notifications.
-- **Smarter message detection** — watches the conversation list (not open-thread noise), ignores system placeholder snippets, and optionally notifies when you send a message (useful for dual-SIM testing).
+- **Smarter message detection** — watches the conversation list (not open-thread noise) and ignores system placeholder snippets.
 - **Testing menu** — pipeline test, notification previews, reply debug log, watcher log, and version display under **Testing** in the menu bar.
 - **`npm run install:app`** — one command to rebuild and install to `/Applications/Messages.app`.
 
@@ -108,7 +122,7 @@ npm start
 npm run dist
 ```
 
-Produces `Messages-1.5.0-arm64.dmg` and `Messages-1.5.0-x64.dmg` in `dist/`.
+Produces `Messages-1.5.2-arm64.dmg` and `Messages-1.5.2-x64.dmg` in `dist/`.
 
 Build Apple Silicon only:
 

@@ -11,6 +11,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const {
   showMessageNotification,
+  dismissNotificationGroup,
   setSuppressForegroundCallback,
   setOnNotificationShownCallback,
   setOnNotificationClickCallback,
@@ -48,6 +49,7 @@ const { SMS_TEMPLATES, openConfig, sendTestSms, loadConfig, getFromSender } = re
 const { readSelfTestConfig, writeSelfTestConfig, openSelfTestConfig, ensureSelfTestConfig } = require('./lib/self-test-config');
 const { readLastWatcherEvents, getLogPath: getWatcherLogPath } = require('./lib/watcher-debug-log');
 const { injectSnippetObserver } = require('./lib/snippet-observer');
+const { registerReplySuppression, shouldSuppressReplyEcho, isOutgoingSnippet } = require('./lib/reply-suppress');
 
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
@@ -69,6 +71,7 @@ if (!gotSingleInstanceLock) {
 
 let mainWindow;
 let triggerMessageScan = () => {};
+let acknowledgeOutgoingReply = () => {};
 let messagesSession;
 
 function createMainWindow() {
@@ -121,9 +124,11 @@ function createMainWindow() {
   setOnNotificationClickCallback(handleNotificationClick);
   setOnNotificationReplyCallback(handleNotificationReply);
   setupServiceWorkerNotificationBridge(mainWindow, messagesSession);
-  triggerMessageScan = setupMessageWatcher(mainWindow, (payload) => {
+  const watcher = setupMessageWatcher(mainWindow, (payload) => {
     handleIncomingNotification(null, payload);
-  }) || (() => {});
+  });
+  triggerMessageScan = watcher?.poll || (() => {});
+  acknowledgeOutgoingReply = watcher?.acknowledgeOutgoingReply || (() => {});
 
   const injectObserver = () => injectSnippetObserver(mainWindow);
   mainWindow.webContents.on('did-finish-load', injectObserver);
@@ -133,6 +138,36 @@ function createMainWindow() {
 function handleIncomingNotification(_event, payload) {
   captureFrontApp();
   logIncomingPayload(payload);
+
+  let conversationUrl = typeof payload.data === 'string' ? payload.data : '';
+  let outgoing = false;
+  if (payload.raw) {
+    try {
+      const parsed = JSON.parse(payload.raw);
+      if (parsed.conversationUrl) {
+        conversationUrl = parsed.conversationUrl;
+      }
+      outgoing = Boolean(parsed.outgoing);
+    } catch {
+      // Ignore malformed raw payloads.
+    }
+  }
+
+  if (outgoing || isOutgoingSnippet(payload.body)) {
+    const config = readSelfTestConfig();
+    if (!config.notifyOutgoing) {
+      return;
+    }
+  }
+
+  if (shouldSuppressReplyEcho({
+    conversationUrl,
+    body: payload.body,
+    outgoing: false,
+  })) {
+    return;
+  }
+
   showMessageNotification(payload);
 }
 
@@ -153,8 +188,12 @@ async function handleNotificationReply({ sender, conversationUrl, replyText }) {
   captureFrontApp();
   suppressActivateDuringReply(20000);
 
+  const trimmed = String(replyText || '').trim();
+  registerReplySuppression({ conversationUrl, replyText: trimmed });
+  dismissNotificationGroup({ sender, conversationUrl });
+
   if (!mainWindow || mainWindow.isDestroyed()) {
-    logReplyEvent('skipped', { reason: 'no-window', sender, conversationUrl, replyText });
+    logReplyEvent('skipped', { reason: 'no-window', sender, conversationUrl, replyText: trimmed });
     restoreFrontApp();
     return;
   }
@@ -166,11 +205,12 @@ async function handleNotificationReply({ sender, conversationUrl, replyText }) {
     const result = await sendReply(mainWindow, {
       sender,
       conversationUrl,
-      text: replyText,
+      text: trimmed,
       background: true,
     });
 
     if (result.ok) {
+      acknowledgeOutgoingReply(conversationUrl, trimmed);
       console.log('[Messages] Reply sent (background):', {
         sender,
         conversationUrl,
@@ -181,7 +221,7 @@ async function handleNotificationReply({ sender, conversationUrl, replyText }) {
       console.warn('[Messages] Reply failed (background):', result.reason || result, {
         sender,
         conversationUrl,
-        replyText,
+        replyText: trimmed,
       });
     }
   } finally {
@@ -399,8 +439,8 @@ function setupApplicationMenu() {
             configPath,
             '',
             'Add your phone numbers in any format, for example:',
-            '  "+1 555 000 0001"',
-            '  "+1 555 000 0002"',
+            '  "+1 555 123 4567"',
+            '  "07 00 00 00 00"',
             '',
             'When "Notify When I Send a Message" is on, you also get a banner for texts you send',
             '(useful for dual-SIM testing). Incoming texts always notify.',
