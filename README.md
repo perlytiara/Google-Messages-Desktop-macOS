@@ -30,8 +30,8 @@ Get the latest release:
 
 | Chip | File |
 |------|------|
-| Apple Silicon (M1/M2/M3/M4) | `Messages-1.5.2-arm64.dmg` |
-| Intel | `Messages-1.5.2-x64.dmg` |
+| Apple Silicon (M1/M2/M3/M4) | `Messages-1.5.3-arm64.dmg` |
+| Intel | `Messages-1.5.3-x64.dmg` |
 
 Releases: [github.com/perlytiara/Google-Messages-Desktop-macOS/releases](https://github.com/perlytiara/Google-Messages-Desktop-macOS/releases)
 
@@ -61,13 +61,19 @@ That rebuilds, installs to `/Applications/Messages.app`, and relaunches.
 - **Background quick reply** — reply from Notification Center without the app stealing focus.
 - **Contact name or number** as the notification title (no extra app label in the banner).
 - Notifications grouped **by contact** (one alert per person, updated as new texts arrive).
-- **Copy Code** / **Dismiss** on verification / OTP messages.
+- **Copy Code** / **Dismiss** on verification / OTP messages (English, French, and other common formats).
 - Regular messages use short banners with a reply field; click to open the thread.
 - Opens the correct conversation via in-app navigation (no full reload).
 - **Persistent message baseline** — restarts do not re-notify for old conversations.
 - **Single-instance app** — no duplicate Messages icons in the Dock.
 - **Incoming-only notifications** — messages you send (including quick replies) no longer trigger a second banner that looks like it came from the contact.
 - Optional developer tools for testing SMS via Twilio (credentials stay local).
+
+## What's new in 1.5.3
+
+- **Multi-locale verification codes** — detects and copies OTPs from French messages (e.g. `Votre code de vérification … est: 366017`), plus Spanish, German, Italian, and Portuguese patterns.
+- **French bank / app formats** — supports `le code est …`, branded codes (`Votre code Tinder est …`), and `#123456` suffixes.
+- **Testing menu** — new French verification previews under **Testing → Preview Verification Formats**.
 
 ## What's new in 1.5.2
 
@@ -122,7 +128,7 @@ npm start
 npm run dist
 ```
 
-Produces `Messages-1.5.2-arm64.dmg` and `Messages-1.5.2-x64.dmg` in `dist/`.
+Produces `Messages-1.5.3-arm64.dmg` and `Messages-1.5.3-x64.dmg` in `dist/`.
 
 Build Apple Silicon only:
 
