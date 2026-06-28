@@ -20,7 +20,7 @@ Regular texts show the **contact name** (or phone number if the contact is not s
 
 ### Verification code notification
 
-Verification texts show **Copy Code** and **Dismiss**. Copy stays in the background; the code is copied without jumping to the app. Codes auto-clear after 5 minutes if ignored.
+Verification texts show the **extracted code** as the body (not the full SMS). **Copy Code** copies the digits, marks the thread read in the background, and dismisses the alert. No reply field on code messages. Codes auto-clear after 5 minutes if ignored.
 
 ![Verification notification with Copy Code and Dismiss](docs/screenshots/notification-verification.png)
 
@@ -30,8 +30,8 @@ Get the latest release:
 
 | Chip | File |
 |------|------|
-| Apple Silicon (M1/M2/M3/M4) | `Messages-1.5.3-arm64.dmg` |
-| Intel | `Messages-1.5.3-x64.dmg` |
+| Apple Silicon (M1/M2/M3/M4) | `Messages-1.6.0-arm64.dmg` |
+| Intel | `Messages-1.6.0-x64.dmg` |
 
 Releases: [github.com/perlytiara/Google-Messages-Desktop-macOS/releases](https://github.com/perlytiara/Google-Messages-Desktop-macOS/releases)
 
@@ -61,57 +61,44 @@ That rebuilds, installs to `/Applications/Messages.app`, and relaunches.
 - **Background quick reply** — reply from Notification Center without the app stealing focus.
 - **Contact name or number** as the notification title (no extra app label in the banner).
 - Notifications grouped **by contact** (one alert per person, updated as new texts arrive).
-- **Copy Code** / **Dismiss** on verification / OTP messages (English, French, and other common formats).
-- Regular messages use short banners with a reply field; click to open the thread.
+- **Regular messages** — inline **Reply**, **Mark Read**, and **Dismiss**.
+- **Verification / bank codes** — extracted code as the notification body; **Copy Code** (copy + mark read + dismiss) or **Dismiss**; no reply on code messages.
+- **Mark read in place** — marking from a notification does not leave you on a different conversation; focus returns to the app you were using.
 - Opens the correct conversation via in-app navigation (no full reload).
+- **Multi-locale OTP detection** — English, French, Spanish, German, Italian, Portuguese (e.g. BoursoBank `le code est …`, Google `G-123456`).
 - **Persistent message baseline** — restarts do not re-notify for old conversations.
 - **Single-instance app** — no duplicate Messages icons in the Dock.
 - **Incoming-only notifications** — messages you send (including quick replies) no longer trigger a second banner that looks like it came from the contact.
 - Optional developer tools for testing SMS via Twilio (credentials stay local).
 
+## What's new in 1.6.0
+
+- **Copy Code marks read and dismisses** — one tap copies the OTP, marks the thread read in the background, and clears the notification.
+- **Mark Read action** — regular messages can be marked read from Notification Center without opening Messages.
+- **Mark read in place** — background DOM updates never strand you on the wrong conversation; your previous thread is restored.
+- **Copyable verification codes** — bank and OTP SMS show the extracted digits (e.g. `239159`) with context in the subtitle, not the full message text.
+- **No reply on code messages** — verification alerts are copy-or-dismiss only; regular messages keep inline reply.
+- **Multi-locale verification** — French (`Votre code … est:`, `le code est …`), plus Spanish, German, Italian, Portuguese patterns.
+- **Testing tools** — batch notification previews (**Testing → Run Batch Test**), `npm run test:notifications`, and `npm run test:sms` for Twilio.
+- **Stability fix** — crash when interacting with notifications after mark-as-read (`notificationInteractionUntil`).
+
 ## What's new in 1.5.3
 
-- **Multi-locale verification codes** — detects and copies OTPs from French messages (e.g. `Votre code de vérification … est: 366017`), plus Spanish, German, Italian, and Portuguese patterns.
-- **French bank / app formats** — supports `le code est …`, branded codes (`Votre code Tinder est …`), and `#123456` suffixes.
-- **Testing menu** — new French verification previews under **Testing → Preview Verification Formats**.
+- **Multi-locale verification codes** — French, Spanish, German, Italian, and Portuguese OTP patterns.
+- **Testing menu** — French verification previews under **Testing → Preview Verification Formats**.
 
 ## What's new in 1.5.2
 
 - **Fix false reply notifications** — replying from Notification Center no longer triggers a second alert that shows your contact’s name with your own message text.
-- **Outgoing messages blocked by default** — only incoming texts notify; legacy self-test config no longer enables notify-on-send accidentally.
+- **Outgoing messages blocked by default** — only incoming texts notify.
 - **Reply echo suppression** — dismisses the banner on reply and suppresses watcher echoes for that thread.
-- **Config migration** — old `enabled` flag in `self-test.json` is removed and mapped to safe defaults.
-
-## What's new in 1.5.1
-
-- **Faster notification replies** — reduced wait times before typing and sending from a quick reply.
-- **Persistent snippet baseline** — conversation previews saved to disk to prevent duplicate alerts after restart.
-- **Stable startup scan** — waits for the inbox to finish loading before delivering notifications.
 
 ## What's new in 1.5.0
 
 - **Background quick reply** — type a response in Notification Center; Messages sends it in the background without popping the window to the front.
-- **Cleaner notification layout** — contact name (or phone number) as the title, message text as the body. No redundant subtitle line.
-- **Reliable send pipeline** — replies type into Google Messages correctly, click Send, and verify the message actually left the compose box.
-- **Faster replies** — reduced delays when the conversation is already open; send completes in about a second in typical cases.
-- **No duplicate alerts on restart** — conversation snippets are saved to disk and the watcher waits for a stable inbox scan before delivering notifications.
-- **Smarter message detection** — watches the conversation list (not open-thread noise) and ignores system placeholder snippets.
-- **Testing menu** — pipeline test, notification previews, reply debug log, watcher log, and version display under **Testing** in the menu bar.
+- **Cleaner notification layout** — contact name as the title, message text as the body.
+- **No duplicate alerts on restart** — conversation snippets saved to disk.
 - **`npm run install:app`** — one command to rebuild and install to `/Applications/Messages.app`.
-
-## What's new in 1.2.0
-
-- **Inline quick reply** — type a response directly in Notification Center without opening Messages.
-- **Grouped by contact** — multiple texts from the same person update one notification instead of flooding the list.
-- Verification texts still use **Copy Code** + **Dismiss** (no inline reply on OTP alerts).
-
-## What's new in 1.1.0
-
-- **Smart notifications** — regular vs verification detection with appropriate timing.
-- **Copy Code** copies OTPs without opening or hiding the app.
-- **Click notification** opens the matching conversation thread instantly.
-- **DOM-based message watcher** — reliable alerts when Google Messages syncs new texts.
-- **Banner + alert behavior** — regular messages auto-dismiss; verification codes persist (with 5-minute max).
 
 ## Development
 
@@ -128,7 +115,7 @@ npm start
 npm run dist
 ```
 
-Produces `Messages-1.5.3-arm64.dmg` and `Messages-1.5.3-x64.dmg` in `dist/`.
+Produces `Messages-1.6.0-arm64.dmg` and `Messages-1.6.0-x64.dmg` in `dist/`.
 
 Build Apple Silicon only:
 
@@ -147,7 +134,7 @@ npm run install:app
 For developers only. Credentials are stored locally and are **never** committed to git.
 
 1. Copy `.env.example` to `~/Library/Application Support/messages/.env`, or use **Testing → Configure Test SMS Settings** in the app.
-2. Add your own Twilio Account SID, Auth Token, sender ID, and phone number.
+2. Add your own Twilio Account SID, Auth Token, sender ID (`TESTunit` alphanumeric or E.164 phone), and phone number.
 3. Use **Testing → Send Real SMS to My Phone** or `npm run test:sms`.
 
 ### Debug logs

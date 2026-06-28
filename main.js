@@ -16,6 +16,7 @@ const {
   setOnNotificationShownCallback,
   setOnNotificationClickCallback,
   setOnNotificationReplyCallback,
+  setOnNotificationMarkAsReadCallback,
 } = require('./lib/notifications');
 const {
   attachMainWindow,
@@ -32,6 +33,7 @@ const {
 } = require('./lib/notification-foreground');
 const { openConversation } = require('./lib/open-conversation');
 const { sendReply } = require('./lib/send-reply');
+const { markAsRead } = require('./lib/mark-as-read');
 const { logReplyEvent, readLastReplyLog } = require('./lib/reply-log');
 const { requestMacNotificationPermission, readPermissionState } = require('./lib/permissions');
 const { setupServiceWorkerNotificationBridge } = require('./lib/service-worker-bridge');
@@ -40,10 +42,14 @@ const { readLastNotificationLog, logIncomingPayload } = require('./lib/notificat
 const {
   REGULAR_SCENARIO,
   GROUPED_SCENARIO,
+  SPACED_TEST_SCENARIO,
   VERIFICATION_FORMATS,
   TEST_SCENARIOS,
   simulateNotification,
   simulateServiceWorkerMessage,
+  runSpacedNotificationTest,
+  runBatchNotificationTest,
+  BATCH_TEST_SCENARIO,
 } = require('./lib/test-notifications');
 const { SMS_TEMPLATES, openConfig, sendTestSms, loadConfig, getFromSender } = require('./lib/test-sms');
 const { readSelfTestConfig, writeSelfTestConfig, openSelfTestConfig, ensureSelfTestConfig } = require('./lib/self-test-config');
@@ -54,11 +60,28 @@ const { registerReplySuppression, shouldSuppressReplyEcho, isOutgoingSnippet } =
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 
+const NOTIFICATION_TEST_FLAG = '--run-notification-tests';
+
+function handleNotificationTestLaunch(argv = process.argv) {
+  if (!Array.isArray(argv) || !argv.includes(NOTIFICATION_TEST_FLAG)) {
+    return;
+  }
+
+  setTimeout(() => {
+    runBatchNotificationTest(BATCH_TEST_SCENARIO);
+  }, 1500);
+}
+
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
+    if (Array.isArray(argv) && argv.includes(NOTIFICATION_TEST_FLAG)) {
+      runBatchNotificationTest(BATCH_TEST_SCENARIO);
+      return;
+    }
+
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore();
@@ -123,6 +146,7 @@ function createMainWindow() {
   setOnNotificationShownCallback(captureFrontApp);
   setOnNotificationClickCallback(handleNotificationClick);
   setOnNotificationReplyCallback(handleNotificationReply);
+  setOnNotificationMarkAsReadCallback(handleNotificationMarkAsRead);
   setupServiceWorkerNotificationBridge(mainWindow, messagesSession);
   const watcher = setupMessageWatcher(mainWindow, (payload) => {
     handleIncomingNotification(null, payload);
@@ -181,6 +205,32 @@ async function handleNotificationClick({ sender, conversationUrl, body }) {
   const result = await openConversation(mainWindow, { sender, conversationUrl, body });
   if (!result.ok) {
     console.warn('[Messages] Could not open conversation:', result.reason || result, { sender, conversationUrl });
+  }
+}
+
+async function handleNotificationMarkAsRead({ sender, conversationUrl }) {
+  captureFrontApp();
+  suppressActivateDuringReply(15000);
+  dismissNotificationGroup({ sender, conversationUrl });
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    restoreFrontApp();
+    return;
+  }
+
+  const { wasHidden } = prepareWindowForBackgroundReply();
+
+  try {
+    const result = await markAsRead(mainWindow, { sender, conversationUrl, background: true });
+    console.log('[Messages] Mark as read (background):', {
+      sender,
+      conversationUrl,
+      method: result.method,
+      ok: result.ok,
+    });
+  } finally {
+    finishBackgroundReply({ wasHidden });
+    restoreFrontApp();
   }
 }
 
@@ -360,6 +410,14 @@ function setupApplicationMenu() {
     {
       label: 'Preview Grouped Follow-up (same contact)',
       click: () => simulateNotification(GROUPED_SCENARIO.payload),
+    },
+    {
+      label: 'Run Batch Test (5 messages, 8s apart)',
+      click: () => runBatchNotificationTest(BATCH_TEST_SCENARIO),
+    },
+    {
+      label: 'Run Spaced Test (10s apart)',
+      click: () => runSpacedNotificationTest(SPACED_TEST_SCENARIO),
     },
     {
       label: 'Preview Verification Formats (instant)',
@@ -550,6 +608,7 @@ if (gotSingleInstanceLock) {
 
     setupApplicationMenu();
     createMainWindow();
+    handleNotificationTestLaunch();
 
     mainWindow.webContents.once('did-finish-load', async () => {
       if (readPermissionState().prompted) {

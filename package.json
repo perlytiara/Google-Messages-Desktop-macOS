@@ -1,6 +1,6 @@
 {
   "name": "messages",
-  "version": "1.5.3",
+  "version": "1.6.0",
   "main": "main.js",
   "description": "Unofficial Google Messages desktop client for macOS with native notifications.",
   "author": "perlytiara",
@@ -15,6 +15,7 @@
     "dist": "node build-script.js",
     "dist:arm64": "electron-builder --mac dmg --arm64 -p never",
     "dist:x64": "electron-builder --mac dmg --x64 -p never",
+    "test:notifications": "bash scripts/run-notification-tests.sh",
     "test:sms": "node scripts/send-test-sms.js"
   },
   "devDependencies": {
