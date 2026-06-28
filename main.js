@@ -62,6 +62,7 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 
 const NOTIFICATION_TEST_FLAG = '--run-notification-tests';
+const CHECK_UPDATES_FLAG = '--check-updates';
 
 function handleNotificationTestLaunch(argv = process.argv) {
   if (!Array.isArray(argv) || !argv.includes(NOTIFICATION_TEST_FLAG)) {
@@ -73,6 +74,16 @@ function handleNotificationTestLaunch(argv = process.argv) {
   }, 1500);
 }
 
+function handleUpdateCheckLaunch(argv = process.argv) {
+  if (!Array.isArray(argv) || !argv.includes(CHECK_UPDATES_FLAG)) {
+    return;
+  }
+
+  setTimeout(() => {
+    checkForUpdates({ manual: true });
+  }, 3000);
+}
+
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.quit();
@@ -80,6 +91,11 @@ if (!gotSingleInstanceLock) {
   app.on('second-instance', (_event, argv) => {
     if (Array.isArray(argv) && argv.includes(NOTIFICATION_TEST_FLAG)) {
       runBatchNotificationTest(BATCH_TEST_SCENARIO);
+      return;
+    }
+
+    if (Array.isArray(argv) && argv.includes(CHECK_UPDATES_FLAG)) {
+      checkForUpdates({ manual: true });
       return;
     }
 
@@ -616,6 +632,7 @@ if (gotSingleInstanceLock) {
     createMainWindow();
     setupAutoUpdater(mainWindow);
     handleNotificationTestLaunch();
+    handleUpdateCheckLaunch();
 
     mainWindow.webContents.once('did-finish-load', async () => {
       if (readPermissionState().prompted) {

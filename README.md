@@ -97,6 +97,10 @@ For seamless macOS updates without Gatekeeper warnings, add these repository sec
 
 Push a tag (e.g. `v1.6.2`) and the [Release workflow](.github/workflows/release.yml) builds, signs, and publishes update assets automatically.
 
+## What's new in 1.6.2
+
+- Patch release to verify the in-app auto-update pipeline.
+
 ## What's new in 1.6.1
 
 - **Automatic updates** — background download from GitHub Releases, native progress UI, restart to install.
