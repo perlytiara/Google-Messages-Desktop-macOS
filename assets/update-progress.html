@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Downloading Update</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      }
+
+      body {
+        margin: 0;
+        padding: 20px 22px 18px;
+        background: transparent;
+        user-select: none;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      p {
+        margin: 0 0 14px;
+        font-size: 12px;
+        opacity: 0.72;
+      }
+
+      progress {
+        width: 100%;
+        height: 8px;
+        appearance: none;
+        border: none;
+        border-radius: 999px;
+        overflow: hidden;
+      }
+
+      progress::-webkit-progress-bar {
+        background: rgba(127, 127, 127, 0.25);
+        border-radius: 999px;
+      }
+
+      progress::-webkit-progress-value {
+        background: #007aff;
+        border-radius: 999px;
+      }
+
+      .meta {
+        margin-top: 10px;
+        font-size: 11px;
+        opacity: 0.65;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="title">Downloading update…</h1>
+    <p id="subtitle">Messages will restart when the download finishes.</p>
+    <progress id="bar" max="100" value="0"></progress>
+    <div class="meta">
+      <span id="percent">0%</span>
+      <span id="size">Starting…</span>
+    </div>
+    <script>
+      const title = document.getElementById('title');
+      const subtitle = document.getElementById('subtitle');
+      const bar = document.getElementById('bar');
+      const percent = document.getElementById('percent');
+      const size = document.getElementById('size');
+
+      function formatBytes(bytes) {
+        if (!bytes) return '0 B';
+        const units = ['B', 'KB', 'MB', 'GB'];
+        const power = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+        const value = bytes / Math.pow(1024, power);
+        return `${value.toFixed(power === 0 ? 0 : 1)} ${units[power]}`;
+      }
+
+      window.updateProgress.onAvailable(({ version, currentVersion }) => {
+        title.textContent = `Downloading Messages ${version}`;
+        subtitle.textContent = `Updating from ${currentVersion}. You can keep using Messages while this runs.`;
+      });
+
+      window.updateProgress.onProgress(({ percent: value, transferred, total, bytesPerSecond, version }) => {
+        const rounded = Math.round(value || 0);
+        if (version) {
+          title.textContent = `Downloading Messages ${version}`;
+        }
+        bar.value = rounded;
+        percent.textContent = `${rounded}%`;
+        const speed = bytesPerSecond ? ` · ${formatBytes(bytesPerSecond)}/s` : '';
+        size.textContent = `${formatBytes(transferred)} / ${formatBytes(total)}${speed}`;
+      });
+    </script>
+  </body>
+</html>

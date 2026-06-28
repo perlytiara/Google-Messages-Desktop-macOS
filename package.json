@@ -1,6 +1,6 @@
 {
   "name": "messages",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "main": "main.js",
   "description": "Unofficial Google Messages desktop client for macOS with native notifications.",
   "author": "perlytiara",
@@ -13,10 +13,14 @@
     "pack": "electron-builder --dir",
     "install:app": "bash scripts/install-messages.sh",
     "dist": "node build-script.js",
-    "dist:arm64": "electron-builder --mac dmg --arm64 -p never",
-    "dist:x64": "electron-builder --mac dmg --x64 -p never",
+    "dist:arm64": "electron-builder --mac dmg zip --arm64 -p never",
+    "dist:x64": "electron-builder --mac dmg zip --x64 -p never",
+    "dist:publish": "electron-builder --mac dmg zip --arm64 --x64 --publish always",
     "test:notifications": "bash scripts/run-notification-tests.sh",
     "test:sms": "node scripts/send-test-sms.js"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -25,7 +29,12 @@
   "build": {
     "appId": "com.perlytiara.messages",
     "productName": "Messages",
-    "publish": null,
+    "publish": {
+      "provider": "github",
+      "owner": "perlytiara",
+      "repo": "Google-Messages-Desktop-macOS",
+      "releaseType": "release"
+    },
     "files": [
       "**/*",
       "!**/.env",
@@ -40,6 +49,13 @@
       "target": [
         {
           "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "arm64",
             "x64"

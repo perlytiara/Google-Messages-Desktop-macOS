@@ -30,8 +30,8 @@ Get the latest release:
 
 | Chip | File |
 |------|------|
-| Apple Silicon (M1/M2/M3/M4) | `Messages-1.6.0-arm64.dmg` |
-| Intel | `Messages-1.6.0-x64.dmg` |
+| Apple Silicon (M1/M2/M3/M4) | `Messages-1.6.1-arm64.dmg` |
+| Intel | `Messages-1.6.1-x64.dmg` |
 
 Releases: [github.com/perlytiara/Google-Messages-Desktop-macOS/releases](https://github.com/perlytiara/Google-Messages-Desktop-macOS/releases)
 
@@ -70,6 +70,37 @@ That rebuilds, installs to `/Applications/Messages.app`, and relaunches.
 - **Single-instance app** — no duplicate Messages icons in the Dock.
 - **Incoming-only notifications** — messages you send (including quick replies) no longer trigger a second banner that looks like it came from the contact.
 - Optional developer tools for testing SMS via Twilio (credentials stay local).
+- **Automatic updates** — downloads in the background from GitHub Releases, shows native progress, restart to install.
+
+## Automatic updates
+
+Messages checks GitHub Releases for updates when the app starts and every 6 hours.
+
+1. A new version downloads **in the background** while you keep using the app.
+2. A native progress window and Dock badge show download status.
+3. When ready, choose **Restart and Install**, **Install on Quit**, or **Later**.
+4. Manual check anytime: **Messages → Check for Updates…**
+
+Updates require **ZIP builds** published to [GitHub Releases](https://github.com/perlytiara/Google-Messages-Desktop-macOS/releases). CI builds DMG + ZIP on every `v*` tag.
+
+### GitHub Actions signing secrets (recommended)
+
+For seamless macOS updates without Gatekeeper warnings, add these repository secrets:
+
+| Secret | Purpose |
+|--------|---------|
+| `CSC_LINK` | Base64-encoded `.p12` Developer ID Application certificate |
+| `CSC_KEY_PASSWORD` | Certificate password |
+| `APPLE_ID` | Apple ID email used for notarization |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password |
+| `APPLE_TEAM_ID` | Apple Developer Team ID |
+
+Push a tag (e.g. `v1.6.2`) and the [Release workflow](.github/workflows/release.yml) builds, signs, and publishes update assets automatically.
+
+## What's new in 1.6.1
+
+- **Automatic updates** — background download from GitHub Releases, native progress UI, restart to install.
+- **Check for Updates** — new item under the Messages app menu.
 
 ## What's new in 1.6.0
 
@@ -115,7 +146,7 @@ npm start
 npm run dist
 ```
 
-Produces `Messages-1.6.0-arm64.dmg` and `Messages-1.6.0-x64.dmg` in `dist/`.
+Produces `Messages-1.6.1-arm64.dmg`, `Messages-1.6.1-x64.dmg`, and matching `.zip` files (for auto-update) in `dist/`.
 
 Build Apple Silicon only:
 

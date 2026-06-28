@@ -56,6 +56,7 @@ const { readSelfTestConfig, writeSelfTestConfig, openSelfTestConfig, ensureSelfT
 const { readLastWatcherEvents, getLogPath: getWatcherLogPath } = require('./lib/watcher-debug-log');
 const { injectSnippetObserver } = require('./lib/snippet-observer');
 const { registerReplySuppression, shouldSuppressReplyEcho, isOutgoingSnippet } = require('./lib/reply-suppress');
+const { setupAutoUpdater, checkForUpdates, setMainWindow } = require('./lib/auto-updater');
 
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
@@ -142,6 +143,7 @@ function createMainWindow() {
   });
 
   attachMainWindow(mainWindow);
+  setMainWindow(mainWindow);
   setSuppressForegroundCallback(handleNotificationInteraction);
   setOnNotificationShownCallback(captureFrontApp);
   setOnNotificationClickCallback(handleNotificationClick);
@@ -551,6 +553,10 @@ function setupApplicationMenu() {
           label: app.name,
           submenu: [
             { role: 'about' },
+            {
+              label: 'Check for Updates…',
+              click: () => checkForUpdates({ manual: true }),
+            },
             { type: 'separator' },
             { role: 'services' },
             { type: 'separator' },
@@ -608,6 +614,7 @@ if (gotSingleInstanceLock) {
 
     setupApplicationMenu();
     createMainWindow();
+    setupAutoUpdater(mainWindow);
     handleNotificationTestLaunch();
 
     mainWindow.webContents.once('did-finish-load', async () => {
