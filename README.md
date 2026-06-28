@@ -97,6 +97,11 @@ For seamless macOS updates without Gatekeeper warnings, add these repository sec
 
 Push a tag (e.g. `v1.6.2`) and the [Release workflow](.github/workflows/release.yml) builds, signs, and publishes update assets automatically.
 
+## What's new in 1.6.4
+
+- **Fix Quit (⌘Q)** — Command+Q and **Quit Messages** now fully exit the app instead of only hiding the window.
+- **Updater cleanup** — download timers and progress windows no longer block quit.
+
 ## What's new in 1.6.3
 
 - **Fix update check** — `app-update.yml` is embedded on local installs; updater also configures GitHub feed programmatically.

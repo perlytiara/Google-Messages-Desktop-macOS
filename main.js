@@ -56,7 +56,7 @@ const { readSelfTestConfig, writeSelfTestConfig, openSelfTestConfig, ensureSelfT
 const { readLastWatcherEvents, getLogPath: getWatcherLogPath } = require('./lib/watcher-debug-log');
 const { injectSnippetObserver } = require('./lib/snippet-observer');
 const { registerReplySuppression, shouldSuppressReplyEcho, isOutgoingSnippet } = require('./lib/reply-suppress');
-const { setupAutoUpdater, checkForUpdates, setMainWindow } = require('./lib/auto-updater');
+const { setupAutoUpdater, checkForUpdates, setMainWindow, shutdownAutoUpdater, closeUpdateWindowForQuit } = require('./lib/auto-updater');
 
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
@@ -113,6 +113,19 @@ let mainWindow;
 let triggerMessageScan = () => {};
 let acknowledgeOutgoingReply = () => {};
 let messagesSession;
+
+function quitApp() {
+  app.isQuiting = true;
+  shutdownAutoUpdater();
+  closeUpdateWindowForQuit();
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.removeAllListeners('close');
+    mainWindow.destroy();
+  }
+
+  app.quit();
+}
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -580,7 +593,11 @@ function setupApplicationMenu() {
             { role: 'hideOthers' },
             { role: 'unhide' },
             { type: 'separator' },
-            { role: 'quit' },
+            {
+              label: 'Quit Messages',
+              accelerator: 'Command+Q',
+              click: () => quitApp(),
+            },
           ],
         }]
       : []),
@@ -657,4 +674,6 @@ app.on('activate', () => {
 
 app.on('before-quit', () => {
   app.isQuiting = true;
+  shutdownAutoUpdater();
+  closeUpdateWindowForQuit();
 });

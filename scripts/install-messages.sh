@@ -24,5 +24,7 @@ cp -R "$ROOT/dist/mac-arm64/Messages.app" "$APP"
 INSTALLED="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
 echo "Installed version: $INSTALLED"
 
-open "$APP"
+if [[ "${1:-}" != "--no-open" ]]; then
+  open "$APP"
+fi
 echo "Done."
