@@ -55,6 +55,7 @@ const { SMS_TEMPLATES, openConfig, sendTestSms, loadConfig, getFromSender } = re
 const { readSelfTestConfig, writeSelfTestConfig, openSelfTestConfig, ensureSelfTestConfig } = require('./lib/self-test-config');
 const { readLastWatcherEvents, getLogPath: getWatcherLogPath } = require('./lib/watcher-debug-log');
 const { injectSnippetObserver } = require('./lib/snippet-observer');
+const { injectRelativeTimeFix } = require('./lib/relative-time-fix');
 const { registerReplySuppression, shouldSuppressReplyEcho, isOutgoingSnippet } = require('./lib/reply-suppress');
 const { setupAutoUpdater, checkForUpdates, setMainWindow, shutdownAutoUpdater, closeUpdateWindowForQuit } = require('./lib/auto-updater');
 
@@ -185,7 +186,10 @@ function createMainWindow() {
   triggerMessageScan = watcher?.poll || (() => {});
   acknowledgeOutgoingReply = watcher?.acknowledgeOutgoingReply || (() => {});
 
-  const injectObserver = () => injectSnippetObserver(mainWindow);
+  const injectObserver = () => {
+    injectSnippetObserver(mainWindow);
+    injectRelativeTimeFix(mainWindow);
+  };
   mainWindow.webContents.on('did-finish-load', injectObserver);
   mainWindow.webContents.on('dom-ready', injectObserver);
 }
